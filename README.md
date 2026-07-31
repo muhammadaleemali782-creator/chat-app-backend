@@ -10,11 +10,14 @@
 5. "Connect" → "Drivers" → connection string copy karo, jaisa dikhega:
    `mongodb+srv://myuser:mypass@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority`
 
-### 2. Gmail App Password banao (OTP email bhejne ke liye)
-1. Apne Gmail account mein "2-Step Verification" on karo (agar nahi hai): https://myaccount.google.com/security
-2. Fir "App Passwords" pe jao: https://myaccount.google.com/apppasswords
-3. Koi naam daalo (jaise "ChatApp") aur "Create" dabao
-4. Jo 16-character password milega, use copy kar lo (spaces ke bina)
+### 2. Resend account banao (OTP email bhejne ke liye - free, Render pe kaam karta hai)
+Render jaisi free hosting SMTP (Gmail) ports block kar deti hai, isliye hum ek HTTP-based
+email service use kar rahe hain jo hamesha kaam karta hai:
+1. https://resend.com pe free account banao (credit card ki zarurat nahi)
+2. Dashboard mein **"API Keys"** → **"Create API Key"** — koi bhi naam do
+3. Jo key milegi (`re_...` se shuru hoti hai) use copy kar lo
+4. Testing ke liye `onboarding@resend.dev` "from" address already kaam karta hai, kuch aur setup nahi chahiye
+   - Note: bina apna domain verify kiye, Resend sirf **usi email pe** bhej payega jisse aapne Resend account banaya hai. Real users tak email bhejne ke liye apna domain verify karna hoga (Resend dashboard mein "Domains" section)
 
 ### 3. Environment file banao
 ```bash
@@ -24,8 +27,7 @@ cp .env.example .env
 - `MONGO_URI` mein apna Atlas connection string daalo (end mein `/chatapp` add karna naa bhoolo database naam ke liye)
 - `JWT_SECRET` mein koi bhi random lamba string daal do
 - `FRONTEND_URL` abhi `http://localhost:5173` hi rehne do
-- `EMAIL_USER` mein apna Gmail address daalo
-- `EMAIL_PASS` mein wo 16-character App Password daalo (upar wala step)
+- `RESEND_API_KEY` mein apni Resend API key daalo
 
 ### 4. Install aur run
 ```bash
