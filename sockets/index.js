@@ -64,6 +64,41 @@ function initSocket(io) {
       io.to(receiverId).emit("stop_typing", { conversationId, userId: socket.userId });
     });
 
+    // ---- WebRTC call signaling ----
+    // Ye server sirf "signal" pass karta hai (offer/answer/ICE candidates) -
+    // actual audio/video connection dono browsers ke beech directly banti hai (peer-to-peer)
+
+    // Caller kisi ko call kar raha hai
+    socket.on("call:invite", ({ toUserId, conversationId, callType, offer, callerName }) => {
+      io.to(toUserId).emit("call:incoming", {
+        fromUserId: socket.userId,
+        conversationId,
+        callType,
+        offer,
+        callerName,
+      });
+    });
+
+    // Receiver ne call accept karke apna "answer" bheja
+    socket.on("call:answer", ({ toUserId, answer }) => {
+      io.to(toUserId).emit("call:answer", { fromUserId: socket.userId, answer });
+    });
+
+    // ICE candidates exchange (dono taraf se connection banane ke liye zaroori)
+    socket.on("call:ice-candidate", ({ toUserId, candidate }) => {
+      io.to(toUserId).emit("call:ice-candidate", { fromUserId: socket.userId, candidate });
+    });
+
+    // Receiver ne call reject kar di
+    socket.on("call:reject", ({ toUserId }) => {
+      io.to(toUserId).emit("call:rejected", { fromUserId: socket.userId });
+    });
+
+    // Kisi ne bhi call end/hang-up ki
+    socket.on("call:end", ({ toUserId }) => {
+      io.to(toUserId).emit("call:ended", { fromUserId: socket.userId });
+    });
+
     socket.on("disconnect", async () => {
       console.log("🔴 User disconnected:", socket.userId);
       await User.findByIdAndUpdate(socket.userId, {

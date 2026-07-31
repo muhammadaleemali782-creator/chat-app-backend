@@ -10,6 +10,7 @@ const initSocket = require("./sockets/index");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const messageRoutes = require("./routes/messages");
+const meetingRoutes = require("./routes/meetings");
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +35,7 @@ connectDB();
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", messageRoutes); // /api/conversations, /api/messages/:id
+app.use("/api", meetingRoutes); // /api/meetings
 
 app.get("/", (req, res) => {
   res.send("Chat app backend chal raha hai ✅");
