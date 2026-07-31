@@ -29,6 +29,38 @@ router.get("/meetings", protect, async (req, res) => {
   }
 });
 
+// @route   POST /api/meetings/check-conflict
+// @desc    Dekho ki us bande ke saath (kisi bhi conversation mein) us waqt ke aas-paas
+//          pehle se koi meeting to nahi hai
+router.post("/meetings/check-conflict", protect, async (req, res) => {
+  try {
+    const { otherUserId, scheduledAt } = req.body;
+    if (!otherUserId || !scheduledAt) {
+      return res.status(400).json({ message: "otherUserId aur scheduledAt zaroori hai" });
+    }
+
+    const theirConversations = await Conversation.find({ participants: otherUserId }).select("_id");
+    const conversationIds = theirConversations.map((c) => c._id);
+
+    const target = new Date(scheduledAt);
+    const bufferMs = 60 * 60 * 1000; // 1 ghante ka buffer dono taraf
+
+    const conflict = await Meeting.findOne({
+      conversation: { $in: conversationIds },
+      status: "upcoming",
+      scheduledAt: {
+        $gte: new Date(target.getTime() - bufferMs),
+        $lte: new Date(target.getTime() + bufferMs),
+      },
+    }).sort({ scheduledAt: 1 });
+
+    res.json({ conflict: !!conflict, meeting: conflict });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // @route   POST /api/meetings
 // @desc    Naya meeting schedule karo
 router.post("/meetings", protect, async (req, res) => {
