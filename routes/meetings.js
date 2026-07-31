@@ -5,6 +5,30 @@ const protect = require("../middleware/auth");
 
 const router = express.Router();
 
+// @route   GET /api/meetings
+// @desc    User ki saari conversations ke saare meetings (Calendar page ke liye)
+router.get("/meetings", protect, async (req, res) => {
+  try {
+    const conversations = await Conversation.find({ participants: req.userId }).select("_id");
+    const conversationIds = conversations.map((c) => c._id);
+
+    const meetings = await Meeting.find({
+      conversation: { $in: conversationIds },
+      status: "upcoming",
+    })
+      .populate({
+        path: "conversation",
+        populate: { path: "participants", select: "username displayName" },
+      })
+      .sort({ scheduledAt: 1 });
+
+    res.json(meetings);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // @route   POST /api/meetings
 // @desc    Naya meeting schedule karo
 router.post("/meetings", protect, async (req, res) => {

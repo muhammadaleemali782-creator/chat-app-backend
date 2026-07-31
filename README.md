@@ -45,8 +45,11 @@ Server `http://localhost:5000` pe chalega. Browser mein khol ke check karo - "Ch
 | POST | /api/auth/forgot-password | Email pe OTP bhejo |
 | POST | /api/auth/reset-password | OTP + naya password se reset karo |
 | POST | /api/meetings | Meeting schedule karo |
+| GET | /api/meetings | Apni saari meetings (Calendar page) |
 | GET | /api/meetings/:conversationId | Ek conversation ke meetings dekho |
 | DELETE | /api/meetings/:id | Meeting cancel karo |
+| POST | /api/calls | Call ka record save karo |
+| GET | /api/calls | Apni call history dekho |
 
 Socket.io events (calling ke liye): `call:invite`, `call:answer`, `call:ice-candidate`, `call:reject`, `call:end`
 | GET | /api/users/search?username=xyz | Username se user dhundo |
