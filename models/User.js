@@ -35,6 +35,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    bio: {
+      type: String,
+      default: "",
+      maxlength: 140,
+    },
     profilePic: {
       type: String,
       default: "",

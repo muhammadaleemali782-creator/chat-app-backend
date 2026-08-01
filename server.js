@@ -41,6 +41,8 @@ const corsOptions = {
 };
 
 const io = new Server(server, {
+  // Default buffer size sirf ~1MB hai - photo/voice-note bhejne ke liye badhana zaroori hai
+  maxHttpBufferSize: 2.5e7, // 25MB
   cors: {
     origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
@@ -49,7 +51,7 @@ const io = new Server(server, {
 
 // Middleware
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 // DB connect
 connectDB();

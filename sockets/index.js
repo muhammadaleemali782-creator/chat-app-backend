@@ -27,31 +27,100 @@ function initSocket(io) {
     await User.findByIdAndUpdate(socket.userId, { isOnline: true });
     io.emit("user_online", { userId: socket.userId });
 
-    // Message bhejna
-    socket.on("send_message", async ({ conversationId, text }) => {
+    // Message bhejna (text, photo, ya voice-note)
+    socket.on(
+      "send_message",
+      async ({ conversationId, text, type = "text", mediaData, mediaMimeType, replyTo }) => {
+        try {
+          if (type === "text" && (!text || !text.trim())) return;
+          if (type !== "text" && !mediaData) return;
+
+          const doc = {
+            conversation: conversationId,
+            sender: socket.userId,
+            text: text?.trim() || "",
+            type,
+          };
+          if (type !== "text") {
+            doc.mediaData = mediaData;
+            doc.mediaMimeType = mediaMimeType;
+            // Photo/voice-note 5 ghante baad khud delete ho jaayegi
+            doc.expiresAt = new Date(Date.now() + 5 * 60 * 60 * 1000);
+          }
+          if (replyTo) doc.replyTo = replyTo;
+
+          let message = await Message.create(doc);
+          message = await message.populate([
+            { path: "replyTo", select: "text type sender" },
+          ]);
+
+          const lastMessagePreview =
+            type === "image" ? "📷 Photo" : type === "audio" ? "🎤 Voice message" : text.trim();
+
+          await Conversation.findByIdAndUpdate(conversationId, {
+            lastMessage: lastMessagePreview,
+            lastMessageAt: new Date(),
+            deletedFor: [], // naya message aaya, to jisne bhi delete ki thi uske liye wapas dikhao
+          });
+
+          const conversation = await Conversation.findById(conversationId);
+
+          // Message dono participants ko bhejo (sender ko bhi, taaki uski dusri tab/device sync ho)
+          conversation.participants.forEach((participantId) => {
+            io.to(participantId.toString()).emit("receive_message", message);
+          });
+
+          // Agar doosra bandaa abhi online hai (uska socket connected hai), to turant
+          // "delivered" maan lo - WhatsApp jaisa double-tick dikhane ke liye
+          const otherParticipant = conversation.participants.find(
+            (p) => p.toString() !== socket.userId
+          );
+          if (otherParticipant) {
+            const sockets = await io.in(otherParticipant.toString()).fetchSockets();
+            if (sockets.length > 0) {
+              message.status = "delivered";
+              await message.save();
+              io.to(socket.userId).emit("message_status", {
+                messageId: message._id,
+                status: "delivered",
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Message send error:", err);
+          socket.emit("message_error", { message: "Message bhejne mein error aayi" });
+        }
+      }
+    );
+
+    // Jab user kisi chat ko khol ke dekh leta hai, uske unread messages "read" mark
+    // karo aur bhejne wale ko batao (blue tick + "kab padha" ke liye)
+    socket.on("mark_read", async ({ conversationId }) => {
       try {
-        if (!text || !text.trim()) return;
-
-        const message = await Message.create({
+        const now = new Date();
+        const unread = await Message.find({
           conversation: conversationId,
-          sender: socket.userId,
-          text: text.trim(),
+          sender: { $ne: socket.userId },
+          status: { $ne: "read" },
         });
+        if (unread.length === 0) return;
 
-        await Conversation.findByIdAndUpdate(conversationId, {
-          lastMessage: text.trim(),
-          lastMessageAt: new Date(),
-        });
+        await Message.updateMany(
+          { _id: { $in: unread.map((m) => m._id) } },
+          { status: "read", readAt: now }
+        );
 
-        const conversation = await Conversation.findById(conversationId);
-
-        // Message dono participants ko bhejo (sender ko bhi, taaki uski dusri tab/device sync ho)
-        conversation.participants.forEach((participantId) => {
-          io.to(participantId.toString()).emit("receive_message", message);
+        // Sabhi alag-alag bhejne walon ko unka apna update bhejo
+        const senderIds = [...new Set(unread.map((m) => m.sender.toString()))];
+        senderIds.forEach((senderId) => {
+          io.to(senderId).emit("messages_read", {
+            conversationId,
+            messageIds: unread.filter((m) => m.sender.toString() === senderId).map((m) => m._id),
+            readAt: now,
+          });
         });
       } catch (err) {
-        console.error("Message send error:", err);
-        socket.emit("message_error", { message: "Message bhejne mein error aayi" });
+        console.error("mark_read error:", err);
       }
     });
 

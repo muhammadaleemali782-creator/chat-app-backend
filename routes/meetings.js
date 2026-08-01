@@ -112,12 +112,17 @@ router.get("/meetings/:conversationId", protect, async (req, res) => {
 // @desc    Meeting cancel karo
 router.delete("/meetings/:id", protect, async (req, res) => {
   try {
-    const meeting = await Meeting.findById(req.params.id);
+    const meeting = await Meeting.findById(req.params.id).populate("conversation");
     if (!meeting) {
       return res.status(404).json({ message: "Meeting nahi mila" });
     }
-    if (meeting.createdBy.toString() !== req.userId) {
-      return res.status(403).json({ message: "Sirf banane wala hi cancel kar sakta hai" });
+    // Pehle sirf meeting banane wala hi cancel kar sakta tha - ab dono participants
+    // (jinke beech meeting hai) cancel kar sakte hain, jaisa ek chat app mein hona chahiye
+    const isParticipant = meeting.conversation.participants.some(
+      (p) => p.toString() === req.userId
+    );
+    if (!isParticipant) {
+      return res.status(403).json({ message: "Ijazat nahi hai" });
     }
     meeting.status = "cancelled";
     await meeting.save();

@@ -46,12 +46,13 @@ router.get("/me", protect, async (req, res) => {
 // @desc    Apni profile update karo (displayName, status, profilePic)
 router.put("/me", protect, async (req, res) => {
   try {
-    const { displayName, status, profilePic } = req.body;
+    const { displayName, status, profilePic, bio } = req.body;
     const user = await User.findById(req.userId);
 
     if (displayName) user.displayName = displayName;
     if (status) user.status = status;
     if (profilePic) user.profilePic = profilePic;
+    if (bio !== undefined) user.bio = bio.slice(0, 140);
 
     await user.save();
     res.json({
@@ -59,6 +60,7 @@ router.put("/me", protect, async (req, res) => {
       displayName: user.displayName,
       status: user.status,
       profilePic: user.profilePic,
+      bio: user.bio,
     });
   } catch (err) {
     res.status(500).json({ message: "Server error" });

@@ -38,11 +38,34 @@ router.get("/conversations", protect, async (req, res) => {
   try {
     const conversations = await Conversation.find({
       participants: req.userId,
+      deletedFor: { $ne: req.userId }, // jo chats maine delete ki hain wo list me na aayen
     })
       .populate("participants", "username displayName profilePic isOnline")
       .sort({ lastMessageAt: -1 });
 
     res.json(conversations);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   DELETE /api/conversations/:id
+// @desc    Chat delete karo (sirf apni list se - doosre user ko dikhti rehti hai,
+//          naya message aane par dono ke liye wapas dikhne lagti hai)
+router.delete("/conversations/:id", protect, async (req, res) => {
+  try {
+    const conversation = await Conversation.findById(req.params.id);
+    if (!conversation) {
+      return res.status(404).json({ message: "Chat nahi mili" });
+    }
+    if (!conversation.participants.some((p) => p.toString() === req.userId)) {
+      return res.status(403).json({ message: "Ijazat nahi hai" });
+    }
+    if (!conversation.deletedFor.some((id) => id.toString() === req.userId)) {
+      conversation.deletedFor.push(req.userId);
+      await conversation.save();
+    }
+    res.json({ message: "Chat delete ho gayi" });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
@@ -55,6 +78,7 @@ router.get("/messages/:conversationId", protect, async (req, res) => {
     const messages = await Message.find({
       conversation: req.params.conversationId,
     })
+      .populate("replyTo", "text type sender")
       .sort({ createdAt: 1 })
       .limit(100);
 
