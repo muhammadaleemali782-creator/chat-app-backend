@@ -16,17 +16,39 @@ const callRoutes = require("./routes/calls");
 const app = express();
 const server = http.createServer(app);
 
+// Website (Vercel) ke saath-saath Android app (Capacitor WebView) se aane wali
+// requests bhi allow karni hain, warna app me "Kuch galat ho gaya" error aata hai.
+// Capacitor Android app ka origin "https://localhost" hota hai (androidScheme config se).
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const ALLOWED_ORIGINS = [
+  FRONTEND_URL,
+  "http://localhost:5173", // local dev
+  "https://localhost", // Capacitor Android app
+  "capacitor://localhost", // Capacitor Android app (kabhi kabhi is scheme se aata hai)
+  "http://localhost", // Capacitor iOS/edge cases
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Postman/curl jaisi tools se bina origin ke requests bhi allow karo
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS se block kiya gaya: " + origin));
+    }
+  },
+  credentials: true,
+};
 
 const io = new Server(server, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
   },
 });
 
 // Middleware
-app.use(cors({ origin: FRONTEND_URL }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // DB connect
