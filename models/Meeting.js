@@ -21,6 +21,11 @@ const meetingSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    // Meeting kitni der ki hai (minutes mein) - conflict check ke liye zaroori hai
+    duration: {
+      type: Number,
+      default: 30,
+    },
     callType: {
       type: String,
       enum: ["audio", "video"],
@@ -30,6 +35,10 @@ const meetingSchema = new mongoose.Schema(
       type: String,
       enum: ["upcoming", "completed", "cancelled"],
       default: "upcoming",
+    },
+    cancelReason: {
+      type: String,
+      default: "",
     },
   },
   { timestamps: true }

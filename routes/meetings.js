@@ -34,27 +34,39 @@ router.get("/meetings", protect, async (req, res) => {
 //          pehle se koi meeting to nahi hai
 router.post("/meetings/check-conflict", protect, async (req, res) => {
   try {
-    const { otherUserId, scheduledAt } = req.body;
+    const { otherUserId, scheduledAt, duration = 30 } = req.body;
     if (!otherUserId || !scheduledAt) {
       return res.status(400).json({ message: "otherUserId aur scheduledAt zaroori hai" });
     }
 
+    // Doosra bandaa kisi ke bhi saath busy ho (kisi bhi conversation mein) - dekhna hai
     const theirConversations = await Conversation.find({ participants: otherUserId }).select("_id");
     const conversationIds = theirConversations.map((c) => c._id);
 
-    const target = new Date(scheduledAt);
-    const bufferMs = 60 * 60 * 1000; // 1 ghante ka buffer dono taraf
+    const newStart = new Date(scheduledAt);
+    const newEnd = new Date(newStart.getTime() + duration * 60 * 1000);
 
-    const conflict = await Meeting.findOne({
+    // Us din ke aas-paas ki saari meetings nikalo, phir asal overlap check karo
+    // (do meetings overlap karti hain agar: start1 < end2 AND start2 < end1)
+    const dayStart = new Date(newStart);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const candidates = await Meeting.find({
       conversation: { $in: conversationIds },
       status: "upcoming",
-      scheduledAt: {
-        $gte: new Date(target.getTime() - bufferMs),
-        $lte: new Date(target.getTime() + bufferMs),
-      },
-    }).sort({ scheduledAt: 1 });
+      scheduledAt: { $gte: dayStart, $lte: dayEnd },
+    })
+      .populate({ path: "conversation", populate: { path: "participants", select: "displayName" } })
+      .sort({ scheduledAt: 1 });
 
-    res.json({ conflict: !!conflict, meeting: conflict });
+    const conflict = candidates.find((m) => {
+      const existingStart = new Date(m.scheduledAt);
+      const existingEnd = new Date(existingStart.getTime() + (m.duration || 30) * 60 * 1000);
+      return newStart < existingEnd && existingStart < newEnd;
+    });
+
+    res.json({ conflict: !!conflict, meeting: conflict || null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -65,7 +77,7 @@ router.post("/meetings/check-conflict", protect, async (req, res) => {
 // @desc    Naya meeting schedule karo
 router.post("/meetings", protect, async (req, res) => {
   try {
-    const { conversationId, title, scheduledAt, callType } = req.body;
+    const { conversationId, title, scheduledAt, callType, duration } = req.body;
 
     if (!conversationId || !title || !scheduledAt) {
       return res.status(400).json({ message: "Title aur date/time zaroori hai" });
@@ -84,10 +96,16 @@ router.post("/meetings", protect, async (req, res) => {
       createdBy: req.userId,
       title: title.trim(),
       scheduledAt: new Date(scheduledAt),
+      duration: Number(duration) > 0 ? Number(duration) : 30,
       callType: callType === "audio" ? "audio" : "video",
     });
 
-    res.status(201).json(meeting);
+    const populated = await meeting.populate({
+      path: "conversation",
+      populate: { path: "participants", select: "username displayName" },
+    });
+
+    res.status(201).json(populated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error, baad mein try karo" });
@@ -125,6 +143,7 @@ router.delete("/meetings/:id", protect, async (req, res) => {
       return res.status(403).json({ message: "Ijazat nahi hai" });
     }
     meeting.status = "cancelled";
+    meeting.cancelReason = (req.body?.reason || "").trim().slice(0, 200);
     await meeting.save();
     res.json({ message: "Meeting cancel ho gaya" });
   } catch (err) {
